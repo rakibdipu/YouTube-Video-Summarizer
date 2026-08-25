@@ -1,0 +1,10 @@
+﻿# Video Summarizer - Requirements
+faster-whisper>=1.0.0         # Fast Speech-to-text (Whisper CTranslate2)
+transformers>=4.35.0          # HuggingFace BART summarizer
+torch>=2.0.0                  # PyTorch
+yt-dlp>=2024.1.1              # YouTube video downloader
+imageio-ffmpeg>=0.4.9         # Bundled FFmpeg binaries
+flask>=3.0.0                  # Local Web Server & API
+colorama>=0.4.6               # Terminal Colors & UI
+tqdm>=4.66.0                  # Progress Bars
+customtkinter>=5.2.0          # Optional Desktop GUI

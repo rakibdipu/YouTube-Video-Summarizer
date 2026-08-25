@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Summarizer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Tahoma,sans-serif;background:#0d0d0d;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:30px 20px}
+h1{color:#ff8c00;font-size:2.2rem;margin-bottom:6px;font-weight:800}
+.subtitle{color:#777;margin-bottom:28px;font-size:0.95rem}
+.card{width:100%;max-width:840px;background:#1a1a1a;border-radius:14px;padding:28px;box-shadow:0 0 35px rgba(255,140,0,0.08);border:1px solid #282828}
+input[type=text]{width:100%;padding:14px 16px;background:#242424;border:2px solid #2e2e2e;border-radius:8px;color:#fff;font-size:15px;outline:none;transition:.2s}
+input[type=text]:focus{border-color:#ff8c00}
+.row{display:flex;gap:12px;margin-top:14px;align-items:center;flex-wrap:wrap}
+select{padding:12px 14px;background:#242424;border:2px solid #2e2e2e;border-radius:8px;color:#fff;font-size:14px;outline:none;cursor:pointer}
+select:focus{border-color:#ff8c00}
+button#processBtn{flex:1;min-width:180px;padding:14px;background:#ff8c00;color:#0d0d0d;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s}
+button#processBtn:hover{background:#e67e00}
+button#processBtn:disabled{background:#444;color:#777;cursor:not-allowed}
+
+/* Live Progress */
+.progress-wrap{display:none;margin-top:22px;background:#242424;border-radius:10px;padding:18px;border:1px solid #333}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.progress-label{color:#ff8c00;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.progress-pct{color:#ffb347;font-size:14px;font-weight:700}
+.spinner{width:16px;height:16px;border:2.5px solid #333;border-top:2.5px solid #ff8c00;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bar-bg{background:#151515;border-radius:6px;height:10px;overflow:hidden}
+.bar-fill{height:100%;background:linear-gradient(90deg,#ff8c00,#ffa31a);border-radius:6px;width:5%;transition:width .4s ease}
+.stage-steps{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.stage{padding:5px 12px;border-radius:20px;font-size:12px;background:#151515;color:#666;transition:.2s}
+.stage.active{background:#ff8c00;color:#000;font-weight:700}
+.stage.done{background:#1f381f;color:#4caf50;font-weight:600}
+
+.error-box{display:none;margin-top:18px;background:#2a1111;border-left:4px solid #ff4444;padding:14px;border-radius:6px;color:#ff8888;font-size:14px;line-height:1.5}
+
+/* Results */
+.results{display:none;margin-top:26px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.stat{background:#242424;padding:14px;border-radius:8px;text-align:center;border-top:3px solid #ff8c00;border-bottom:1px solid #2d2d2d}
+.stat-val{font-size:1.4rem;font-weight:700;color:#ff8c00}
+.stat-lbl{font-size:11px;color:#777;text-transform:uppercase;margin-top:4px;letter-spacing:0.5px}
+h3{color:#ff8c00;font-size:1.05rem;margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+.textbox{background:#111;border-radius:8px;padding:18px;white-space:pre-wrap;font-size:14px;line-height:1.7;max-height:380px;overflow-y:auto;border:1px solid #252525;color:#ddd}
+</style>
+</head>
+<body>
+<h1>🎬 Video Summarizer</h1>
+<p class="subtitle">Fast AI Video Transcription & Summarization</p>
+
+<div class="card">
+  <input type="text" id="url" placeholder="🔗 Paste YouTube URL or local video path..." autocomplete="off">
+  <div class="row">
+    <select id="model">
+      <option value="tiny">⚡ Tiny — Ultra Fast (30s)</option>
+      <option value="base" selected>🟠 Base — Fast & Recommended (1-2m)</option>
+      <option value="small">🎯 Small — High Accuracy (takes longer)</option>
+      <option value="medium">💎 Medium — Best Quality (GPU recommended)</option>
+    </select>
+    <button id="processBtn" onclick="startProcess()">🚀 Process Video</button>
+  </div>
+
+  <!-- Live progress area with live % and detail -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <div class="progress-label">
+        <div class="spinner"></div>
+        <span id="progressText">Starting...</span>
+      </div>
+      <div class="progress-pct" id="progressPct">5%</div>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
+    <div class="stage-steps">
+      <span class="stage" id="s-download">⬇ Download</span>
+      <span class="stage" id="s-audio">🎵 Audio</span>
+      <span class="stage" id="s-transcribe">📝 Transcribe</span>
+      <span class="stage" id="s-summarize">✨ Summarize</span>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-val" id="sLang">-</div><div class="stat-lbl">Language</div></div>
+      <div class="stat"><div class="stat-val" id="sWords">-</div><div class="stat-lbl">Words</div></div>
+      <div class="stat"><div class="stat-val" id="sSummary">-</div><div class="stat-lbl">Summary</div></div>
+      <div class="stat"><div class="stat-val" id="sComp">-</div><div class="stat-lbl">Compression</div></div>
+    </div>
+    <h3>📝 AI Summary & Key Takeaways</h3>
+    <div class="textbox" id="summaryBox"></div>
+    <h3>⏱️ Timestamped Transcript</h3>
+    <div class="textbox" id="tsBox"></div>
+  </div>
+</div>
+
+<script>
+const allStageIds = ["s-download", "s-audio", "s-transcribe", "s-summarize"];
+const stageSequence = ["download", "audio", "transcribe", "summarize"];
+
+let pollInterval = null;
+
+function stripAnsi(s){ return (s||"").replace(/\x1b\[[0-9;]*m/g,"").replace(/\[[0-9;]*m/g,""); }
+
+document.getElementById("url").addEventListener("keydown", e=>{
+  if(e.key==="Enter") startProcess();
+});
+
+function setStage(stage){
+  allStageIds.forEach(id => document.getElementById(id).classList.remove("active","done"));
+  
+  let targetIdx = stageSequence.indexOf(stage);
+  if(targetIdx === -1) return;
+
+  stageSequence.forEach((stg, idx) => {
+    const el = document.getElementById("s-" + stg);
+    if(idx < targetIdx) el.classList.add("done");
+    else if(idx === targetIdx) el.classList.add("active");
+  });
+}
+
+async function startProcess(){
+  let rawUrl = document.getElementById("url").value.trim();
+  const dupIdx = rawUrl.indexOf("https://", 1);
+  if(dupIdx !== -1) rawUrl = rawUrl.substring(0, dupIdx);
+  document.getElementById("url").value = rawUrl;
+
+  if(!rawUrl){ alert("Please enter a valid YouTube URL"); return; }
+
+  const model = document.getElementById("model").value;
+
+  document.getElementById("processBtn").disabled = true;
+  document.getElementById("progressWrap").style.display = "block";
+  document.getElementById("results").style.display = "none";
+  document.getElementById("errorBox").style.display = "none";
+  document.getElementById("progressText").textContent = "Initializing models...";
+  document.getElementById("progressPct").textContent = "5%";
+  document.getElementById("barFill").style.width = "5%";
+  allStageIds.forEach(id => document.getElementById(id).classList.remove("active","done"));
+
+  try {
+    const resp = await fetch("/api/process", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({url: rawUrl, model: model})
+    });
+    const {job_id, error} = await resp.json();
+    if(error){ showError(error); return; }
+    pollStatus(job_id);
+  } catch(e){ showError("Connection failed: "+e.message); }
+}
+
+function pollStatus(job_id){
+  if(pollInterval) clearInterval(pollInterval);
+  
+  pollInterval = setInterval(async ()=>{
+    try{
+      const r = await fetch("/api/status/"+job_id);
+      const job = await r.json();
+
+      if(job.progress) {
+        document.getElementById("progressText").textContent = stripAnsi(job.progress);
+      }
+      
+      if(job.pct !== undefined) {
+        document.getElementById("barFill").style.width = job.pct + "%";
+        document.getElementById("progressPct").textContent = job.pct + "%";
+      }
+
+      if(job.stage) setStage(job.stage);
+
+      if(job.status === "done"){
+        clearInterval(pollInterval);
+        document.getElementById("barFill").style.width = "100%";
+        document.getElementById("progressPct").textContent = "100%";
+        allStageIds.forEach(id => {
+          const el = document.getElementById(id);
+          el.classList.remove("active");
+          el.classList.add("done");
+        });
+        showResults(job.result);
+        document.getElementById("processBtn").disabled = false;
+        document.getElementById("progressWrap").style.display = "none";
+      } else if(job.status === "error"){
+        clearInterval(pollInterval);
+        showError(stripAnsi(job.error));
+        document.getElementById("processBtn").disabled = false;
+        document.getElementById("progressWrap").style.display = "none";
+      }
+    }catch(e){ console.error(e); }
+  }, 1000); // Poll every 1s for super responsive UI updates
+}
+
+function showResults(r){
+  document.getElementById("sLang").textContent    = (r.stats.language||"-").toUpperCase();
+  document.getElementById("sWords").textContent   = r.stats.word_count;
+  document.getElementById("sSummary").textContent = r.stats.summary_length + " w";
+  document.getElementById("sComp").textContent    = r.stats.compression.toFixed(1) + "%";
+  document.getElementById("summaryBox").textContent = r.summary;
+  document.getElementById("tsBox").textContent      = r.timestamps;
+  document.getElementById("results").style.display  = "block";
+}
+
+function showError(msg){
+  const box = document.getElementById("errorBox");
+  box.textContent = "Error: " + msg;
+  box.style.display = "block";
+  document.getElementById("processBtn").disabled = false;
+}
+</script>
+</body>
+</html>
