@@ -3,9 +3,12 @@ title Video Summarizer Web UI
 echo =========================================
 echo Starting Video Summarizer Local Website...
 echo =========================================
-cd /d "R:\video-summarizer\video-summarizer"
+cd /d "%~dp0"
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
+if exist ".venv\Scripts\activate.bat" (
+    call .venv\Scripts\activate.bat
+)
 echo Starting Server...
-.venv\Scripts\python.exe server.py
+python server.py
 pause
